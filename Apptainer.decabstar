@@ -58,7 +58,6 @@ Stage: run
     fast-downward.py
     driver
     builds/release64/bin/
-    third-party/bliss-0.73/
     /opt/ibm/ILOG/CPLEX_Studio201/cplex/
     /opt/ibm/ILOG/CPLEX_Studio201/concert/
     /opt/coin/
