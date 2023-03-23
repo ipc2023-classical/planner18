@@ -15,7 +15,7 @@ namespace symbolic {
 #ifdef USE_CUDD
 
 TransitionRelation::TransitionRelation(SymVariables *sVars,
-				       const Operator *op, 
+				       const Operator *op,
 				       int cost_, LeafFactorID factor) :
     sV(sVars),
     cost(cost_), tBDD(sVars->oneBDD()),
@@ -23,13 +23,13 @@ TransitionRelation::TransitionRelation(SymVariables *sVars,
     absAfterImage(nullptr) {
 
     assert(g_factoring);
-    assert(factor !=  LeafFactorID::CENTER); 
-    assert(factor >= 0); 
-    assert(factor < g_leaves.size()); 
+    assert(factor !=  LeafFactorID::CENTER);
+    assert(factor >= 0);
+    assert(factor < g_leaves.size());
 
 
     ops.insert(op);
-    
+
     for (const auto &prevail : op->get_preconditions()) { //Put precondition of label
 	if(g_belongs_to_factor[prevail.var] == factor) {
 	    tBDD *= sV->preBDD(prevail.var, prevail.val);
@@ -285,6 +285,51 @@ void TransitionRelation::merge(const TransitionRelation &t2, int maxNodes) {
 
     ops.insert(t2.ops.begin(), t2.ops.end());
 }
+
+
+
+
+
+    void TransitionRelation::edeletion(const std::vector<std::vector<BDD>> & notMutexBDDsByFluentFw,
+				       const std::vector<std::vector<BDD>> & notMutexBDDsByFluentBw,
+				       const std::vector<std::vector<BDD>> & exactlyOneBDDsByFluent) {
+    assert(ops.size() == 1);
+    assert(notMutexBDDsByFluentFw.size() == g_variable_domain.size());
+    assert(notMutexBDDsByFluentBw.size() == g_variable_domain.size());
+    assert(exactlyOneBDDsByFluent.size() == g_variable_domain.size());
+    //For each op, include relevant mutexes
+    for (const auto *op : ops) {
+        for (const auto &pp : op->get_effects()) {
+            auto pre =
+                std::find_if(std::begin(op->get_preconditions()),
+                             std::end(op->get_preconditions()),
+                             [&pp] (const Condition &cond) {
+                    return pp.var == cond.var;
+                }
+                             );
+
+            //edeletion bw
+            if (pre == std::end(op->get_preconditions())) {
+                //We have a post effect over this variable.
+                //That means that every previous value is possible
+                //for each value of the variable
+                for (int val = 0; val < g_variable_domain[pp.var]; val++) {
+                    tBDD *= notMutexBDDsByFluentBw[pp.var][val];
+                }
+            } else {
+                //In regression, we are making true pp.pre
+                //So we must negate everything of these.
+                tBDD *= notMutexBDDsByFluentBw[pp.var] [pre->val];
+            }
+            //edeletion fw
+            tBDD *= notMutexBDDsByFluentFw[pp.var][pp.val].SwapVariables(swapVarsS, swapVarsSp);
+
+            //edeletion invariants
+            tBDD *= exactlyOneBDDsByFluent[pp.var][pp.val];
+        }
+    }
+}
+
 
 ostream &operator<<(std::ostream &os, const TransitionRelation &tr) {
     os << "TR(";

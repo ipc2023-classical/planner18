@@ -31,7 +31,7 @@ namespace symbolic {
  * 2) else if Stfilter => filter_mutex() => Szero
  * 3) else if Szero => expand_zero => S (passing by Sfilter)
  * 4) else (S must have something) => expand_cost()
- * 
+ *
  * Zero cost operators have been expanded iff !S.IsZero() && Szero.IsZero()
  */
 class SolutionBound;
@@ -169,4 +169,3 @@ private:
 
 }
 #endif
-

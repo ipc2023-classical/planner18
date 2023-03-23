@@ -70,7 +70,7 @@ void mergeAux(std::vector<T> &elems, FunctionMerge f, int maxTime, int maxSize) 
             }
             elems.erase(elems.end() - 1);
         }
-        //    cout << "Iteration: " << elems.size() << endl;
+
         for (size_t i = 1; i < elems.size(); i += 2) {
             try{
                 T res = f(elems[i - 1], elems[i], maxSize);

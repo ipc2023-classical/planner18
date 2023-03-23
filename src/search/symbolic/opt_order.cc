@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <cassert>
+#include <map>
 
 using namespace std;
 
@@ -15,14 +16,13 @@ using namespace std;
 namespace symbolic {
 //Returns a optimized variable ordering that reorders the variables
 //according to the standard causal graph criterion
-void InfluenceGraph::compute_gamer_ordering(vector <int> &var_order) {
+vector <int> InfluenceGraph::compute_gamer_ordering() {
 
     const causal_graph::CausalGraph &cg = causal_graph::get_causal_graph();
 
-    if (var_order.empty()) {
-        for (size_t v = 0; v < g_variable_domain.size(); v++) {
-            var_order.push_back(v);
-        }
+    vector<int> var_order;
+    for (size_t v = 0; v < g_variable_domain.size(); v++) {
+        var_order.push_back(v);
     }
 
     InfluenceGraph ig_partitions(g_variable_domain.size());
@@ -34,12 +34,77 @@ void InfluenceGraph::compute_gamer_ordering(vector <int> &var_order) {
         }
     }
 
+    //Putting leaves by default at the end helped in some nomystery instance
+    //TODO: It could be worth re-factoring variable ordering strategies and performing some optimizations
+    std::reverse(var_order.begin(), var_order.end());
     ig_partitions.get_ordering(var_order);
 
     // cout << "Var ordering: ";
     // for(int v : var_order) cout << v << " ";
     // cout  << endl;
+
+    return var_order;
 }
+
+vector<int> InfluenceGraph::compute_gamer_ordering_respecting_factors() {
+        if(!g_factoring && g_leaves.empty()) {
+            // we have the second condition for cases where we want to run explicit search with the
+            // respecting ordering, i.e. g_factoring is null, but the leaves are set
+            cout << "Warning: trying to use compute_gamer_ordering_respecting_factors without computing a factoring" << endl;
+            return compute_gamer_ordering();
+        }
+
+        std::vector <int> factor_order; //Factor order contains an entry for each leaf factor, plus
+        std::map <int,int> factor_to_center_variable;
+        std::map <int,int> center_variable_to_factor;
+
+        for (int factor = 0; factor < (int)(g_leaves.size()); ++ factor) {
+            factor_order.push_back(factor);
+        }
+
+        for (size_t v = 0; v < g_variable_domain.size(); v++) {
+            if(g_belongs_to_factor[v]  == LeafFactorID::CENTER) {
+                int id = factor_order.size();
+                factor_order.push_back(id);
+                factor_to_center_variable[id] = v;
+                center_variable_to_factor [v] = id;
+            }
+        }
+        const causal_graph::CausalGraph &cg = causal_graph::get_causal_graph();
+
+        InfluenceGraph ig_partitions(factor_order.size());
+        for (size_t v = 0; v < g_variable_domain.size(); v++) {
+            int factor1 =  g_belongs_to_factor[v] == LeafFactorID::CENTER ? center_variable_to_factor[v] : g_belongs_to_factor[v];
+            for (int v2 : cg.get_successors(v)) {
+                int factor2 =  g_belongs_to_factor[v2] == LeafFactorID::CENTER ? center_variable_to_factor[v2] : g_belongs_to_factor[v2];
+                if (factor1 != factor2) {
+                    ig_partitions.set_influence(factor1, factor2);
+                }
+            }
+        }
+
+        ig_partitions.get_ordering(factor_order);
+
+        std::vector <int> var_order;
+
+        for (int factor : factor_order) {
+            if (factor < (int)(g_leaves.size())) {
+                for (int var : g_leaves[factor]){
+                    var_order.push_back(var);
+                }
+            } else {
+                var_order.push_back(factor_to_center_variable[factor]);
+            }
+        }
+
+
+        // cout << "Var ordering: ";
+        // for(int v : var_order) cout << v << " ";
+        // cout  << endl;
+
+        return var_order;
+}
+
 
 
 //Returns a optimized variable ordering that reorders the variables
@@ -91,8 +156,7 @@ void InfluenceGraph::get_ordering(vector <int> &ordering) const {
 }
 
 
-void InfluenceGraph::randomize(vector <int> &ordering, vector<int> &new_order) {
-    utils::RandomNumberGenerator rng;
+void InfluenceGraph::randomize(const vector <int> &ordering, vector<int> &new_order) const {
     for (size_t i = 0; i < ordering.size(); i++) {
         int rnd_pos = rng.random(ordering.size() - i);
         int pos = -1;
@@ -119,8 +183,6 @@ void InfluenceGraph::randomize(vector <int> &ordering, vector<int> &new_order) {
 
 long InfluenceGraph::optimize_variable_ordering_gamer(vector <int> &order,
                                                       int iterations) const {
-    utils::RandomNumberGenerator rng;
-
     long totalDistance = compute_function(order);
 
     long oldTotalDistance = totalDistance;
@@ -182,7 +244,8 @@ long InfluenceGraph::compute_function(const vector <int> &order) const {
 }
 
 
-InfluenceGraph::InfluenceGraph(int num) {
+InfluenceGraph::InfluenceGraph(int num)  : rng(2023) //TODO: Allow setting random seed as parameter.
+{
     influence_graph.resize(num);
     for (auto &i : influence_graph) {
         i.resize(num, 0);
@@ -195,8 +258,6 @@ void InfluenceGraph::optimize_variable_ordering_gamer(vector <int> &order,
                                                       vector <int> &partition_begin,
                                                       vector <int> &partition_sizes,
                                                       int iterations) const {
-    utils::RandomNumberGenerator rng;
-
     long totalDistance = compute_function(order);
 
     long oldTotalDistance = totalDistance;

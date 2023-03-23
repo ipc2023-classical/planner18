@@ -14,16 +14,16 @@ OppositeFrontierFixed::OppositeFrontierFixed(BDD bdd,
 	        hNotGoal(mgr.getAbsoluteMinTransitionCost()) {
 }
 
-SymSolution OppositeFrontierFixed::checkCut(SymSearch *, const BDD &states, int g, bool fw) const {
+SymSolution OppositeFrontierFixed::checkCut(SymSearch * search, const BDD &states, int g, bool fw) const {
     BDD cut = states * goal;
     if (cut.IsZero()) {
         return SymSolution(); //No solution yet :(
     }
 
     if (fw) //Solution reconstruction will fail
-        return SymSolution(g, 0, cut);
+        return SymSolution(search, g, cut);
     else
-        return SymSolution(0, g, cut);
+        return SymSolution(nullptr, search, 0, g, cut);
 
 }
 UnidirectionalSearch::UnidirectionalSearch(const SymParamsSearch &params) :

@@ -10,7 +10,11 @@ TransitionRelation mergeTR(TransitionRelation tr, const TransitionRelation &tr2,
     return tr;
 }
 BDD mergeAndBDD(const BDD &bdd, const BDD &bdd2, int maxSize) {
-    return bdd.And(bdd2, maxSize);
+    assert (bdd.getNode());
+    assert (bdd2.getNode());
+    BDD result = bdd.And(bdd2, maxSize);
+    assert (result.getNode());
+    return result;
 }
 BDD mergeOrBDD(const BDD &bdd, const BDD &bdd2, int maxSize) {
     return bdd.Or(bdd2, maxSize);

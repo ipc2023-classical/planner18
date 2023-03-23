@@ -8,10 +8,11 @@ namespace symbolic {
 #ifdef USE_CUDD
 
 class SolutionBound {
+protected:
     int lower_bound;
     SymSolution solution;
 
-public: 
+public:
     SolutionBound ();
 
     void new_solution(const SymSolution &sol);

@@ -40,7 +40,9 @@ namespace utils {
 class Timer;
 }
 class StateRegistry;
+class FactPair;
 
+class MutexGroup;
 bool test_goal(const GlobalState &state);
 void save_plan(const std::vector<OperatorID> &plan, bool generates_multiple_plan_files);
 int calculate_plan_cost(const std::vector<OperatorID> &plan);
@@ -57,7 +59,18 @@ void verify_no_axioms_no_conditional_effects();
 
 void check_magic(std::istream &in, std::string magic);
 
-bool are_mutex(const std::pair<int, int> &a, const std::pair<int, int> &b);
+bool are_mutex(const FactPair &a, const FactPair &b);
+void set_mutex(const FactPair &a, const FactPair &b);
+int id_mutex(const FactPair &a, const FactPair &b);
+
+//Alvaro: Substituted previous mutex data structures by two list of
+//mutex groups (to iterate over invariants) and a vector of bools to
+//implement are_mutex (with an auxiliary vector to get the fluent id)
+//and the number of problem fluents
+extern std::vector<MutexGroup> g_mutex_groups;
+extern std::vector<bool> g_inconsistent_facts;
+extern int g_num_facts;
+extern std::vector<int> g_id_first_fact;
 
 extern bool g_use_metric;
 extern int g_min_action_cost;
@@ -101,6 +114,8 @@ extern const GlobalState &g_initial_state();
 // in decoupled search, this only contains the center goals (if any)
 extern std::vector<std::pair<int, int> > g_goal;
 extern std::vector<std::vector<std::pair<int, int> > > g_goals_per_factor;
+extern std::vector<std::pair<int, int> > g_all_goals;
+
 
 extern std::vector<Operator> g_operators;
 extern std::vector<Operator> g_axioms;

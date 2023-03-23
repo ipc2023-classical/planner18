@@ -63,6 +63,7 @@ fast_downward_plugin(
         iterated_search
         lazy_search
         max_evaluator
+        mutex_group
         operator
         operator_cost
         operator_factor_info
@@ -293,6 +294,7 @@ fast_downward_plugin(
         symbolic/leaf_state_space
         symbolic/open_list
         symbolic/opt_order
+	symbolic/prices_ADD
         symbolic/solution_bound
         symbolic/sym_bucket
         symbolic/sym_controller
@@ -320,7 +322,19 @@ fast_downward_plugin(
     SOURCES
         lm_cut_heuristic_sym_dec
     DEPENDS DECOUPLED_SEARCH SYMBOLIC_SEARCH
-)
+ )
+
+fast_downward_plugin(
+    NAME SYMBOLIC_PDBS
+    HELP "Symbolic Pattern Database Heuristics for explicit and decoupled search"
+    SOURCES
+    symbolic_pdbs/gamer_pdbs_heuristic
+    symbolic_pdbs/sym_pdb
+    symbolic_pdbs/lookup_add_decoupled_heuristic
+    symbolic/original_state_space
+    DEPENDS DECOUPLED_SEARCH SYMBOLIC_SEARCH
+ )
+
 
 fast_downward_plugin(
     NAME MIS_FACTORING

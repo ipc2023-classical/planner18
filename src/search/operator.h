@@ -26,6 +26,8 @@ struct Condition {
 
     bool is_applicable(const GlobalState &state) const;
 
+    bool is_applicable(const std::vector<int> &state) const;
+
     bool is_applicable(const LeafState &state) const;
 
     bool operator==(const Condition &other) const {
@@ -52,6 +54,16 @@ struct Effect {
         : var(var), val(val), conditions(co) {}
 
     bool does_fire(const GlobalState &state) const {
+        for (size_t i = 0; i < conditions.size(); ++i){
+            if (!conditions[i].is_applicable(state)){
+                return false;
+            }
+        }
+        return true;
+    }
+
+
+    bool does_fire(const std::vector<int> &state) const {
         for (size_t i = 0; i < conditions.size(); ++i){
             if (!conditions[i].is_applicable(state)){
                 return false;

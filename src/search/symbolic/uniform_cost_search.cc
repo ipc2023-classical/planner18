@@ -3,7 +3,7 @@
 #include "closed_list.h"
 #include "frontier.h"
 #include "sym_solution.h"
-#include "sym_util.h" 
+#include "sym_util.h"
 #include "sym_controller.h"
 #include "debug_macros.h"
 #include "../utils/timer.h"
@@ -47,7 +47,7 @@ bool UniformCostSearch::init(std::shared_ptr<SymStateSpaceManager>  manager,
     DEBUG_MSG(cout << "Init perfect heuristic: " << endl;);
     if (closed_opposite) {
         perfectHeuristic = closed_opposite;
-    } else if (!isAbstracted()) {
+    } else if (!mgr->isAbstracted()) {
         if(fw){
             perfectHeuristic = make_shared<OppositeFrontierFixed>(mgr->getGoal(), *mgr);
         }else{
@@ -67,15 +67,7 @@ bool UniformCostSearch::init(std::shared_ptr<SymStateSpaceManager>  manager,
         }
     }
 
-    DEBUG_MSG(cout << "Init closed: " << endl;);
-
-    closed->init(mgr.get(), this);
-    closed->insert(0, init_bdd);
-    closed->setHNotClosed(open_list.minNextG(frontier, mgr->getAbsoluteMinTransitionCost()));
-    closed->setFNotClosed(getF());
-
-
-    if (solution_bound) {
+    if (solution_bound && perfectHeuristic) {
         SymSolution sol = perfectHeuristic->checkCut(this, init_bdd, 0, fw);
         if (sol.solved()){
             DEBUG_MSG( cout << "Solution found with cost " << sol.getCost() << " total time: " << g_timer <<  endl;);
@@ -89,6 +81,12 @@ bool UniformCostSearch::init(std::shared_ptr<SymStateSpaceManager>  manager,
     }
 
     frontier.init(manager.get(), init_bdd);
+
+    DEBUG_MSG(cout << "Init closed: " << endl;);
+    closed->init(mgr.get(), this);
+    closed->insert(0, init_bdd);
+    closed->setHNotClosed(open_list.minNextG(frontier, mgr->getAbsoluteMinTransitionCost()));
+    closed->setFNotClosed(getF());
 
     prepareBucket();
 

@@ -1,16 +1,12 @@
 #include "closed_list.h"
 
 #include "debug_macros.h"
-#include "../operator.h"
 #include "sym_state_space_manager.h"
 #include "sym_solution.h"
 #include "sym_util.h"
-#include "../utils/timer.h"
 
 #include <cassert>
-#include <fstream>
 #include <iostream>
-#include <sstream>
 #include <string>
 
 using namespace std;
@@ -20,7 +16,7 @@ namespace symbolic {
 
 #ifdef USE_CUDD
 
-ClosedList::ClosedList() : mgr(nullptr) {
+ClosedList::ClosedList() : my_search(nullptr), mgr(nullptr), hNotClosed (0), fNotClosed(0) {
 }
 
 void ClosedList::init(SymStateSpaceManager *manager, UnidirectionalSearch * search) {
@@ -107,8 +103,8 @@ void ClosedList::extract_path(const BDD &c, int h, bool fw,
         return;
     DEBUG_MSG(cout << "Sym closed extract path h=" << h << " notClosed: " << hNotClosed << endl;
     cout << "Closed: ";
-    for (auto &c : closed)
-        cout << c.first << " ";
+    for (auto &clo : closed)
+        cout << clo.first << " ";
     cout << endl;
     );
     const map<int, vector<TransitionRelation>> &trs = mgr->getIndividualTRs();
@@ -215,13 +211,13 @@ void ClosedList::extract_path(const BDD &c, int h, bool fw,
 
         if (h > 0 && steps0 == 0) {
             bool found = false;
-            for (auto key : trs) { //TODO: maybe is best to use the inverse order
+            for (const auto & key : trs) { //TODO: maybe is best to use the inverse order
                 if (found)
                     break;
                 int newH = h - key.first;
                 if (key.first == 0 || closed.count(newH) == 0)
                     continue;
-                for (TransitionRelation &tr : key.second) {
+                for (const TransitionRelation &tr : key.second) {
                     //DEBUG_MSG(cout << "Check " << tr.getOps().size() << " " << (*(tr.getOps().begin()))->get_name() << " of cost " << key.first << " in h=" << newH << endl;);
                     BDD succ;
                     if (fw) {
@@ -353,13 +349,13 @@ std::pair<BDD, int> ClosedList::extract_partial_path(const map<int, vector<Trans
 
         if (h > 0 && steps0 == 0) {
             bool found = false;
-            for (auto key : trs) { //TODO: maybe is best to use the inverse order
+            for (const auto & key : trs) { //TODO: maybe is best to use the inverse order
                 if (found)
                     break;
                 int newH = h - key.first;
                 if (key.first == 0 || closed.count(newH) == 0)
                     continue;
-                for (TransitionRelation &tr : key.second) {
+                for (const TransitionRelation &tr : key.second) {
                     BDD succ;
                     if (fw) {
                         succ = tr.preimage(target);
@@ -393,10 +389,10 @@ std::pair<BDD, int> ClosedList::extract_partial_path(const map<int, vector<Trans
 }
 
 
-SymSolution ClosedList::checkCut(SymSearch *, const BDD &states, int g, bool fw) const {
+SymSolution ClosedList::checkCut(SymSearch * search, const BDD &states, int g, bool fw) const {
     BDD cut_candidate = states * closedTotal;
     if (cut_candidate.IsZero()) {
-        return SymSolution(); //No solution yet :(
+        return {}; //No solution yet :(
     }
 
     for (const auto &closedH : closed) {
@@ -406,9 +402,9 @@ SymSolution ClosedList::checkCut(SymSearch *, const BDD &states, int g, bool fw)
         BDD cut = closedH.second * cut_candidate;
         if (!cut.IsZero()) {
             if (fw) //Solution reconstruction will fail
-                return SymSolution(g, h, cut);
+		    return {search, my_search, g, h, cut};
             else
-                return SymSolution(h, g, cut);
+		    return {my_search, search, h, g, cut};
         }
     }
 
@@ -416,15 +412,14 @@ SymSolution ClosedList::checkCut(SymSearch *, const BDD &states, int g, bool fw)
     exit_with(utils::ExitCode::SEARCH_CRITICAL_ERROR);
 }
 
-
+/*
 void ClosedList::getHeuristic(vector<ADD> &heuristics,
         vector <int> &maxHeuristicValues) const {
     int previousMaxH = 0; //Get the previous value of max h
     if (!maxHeuristicValues.empty()) {
         previousMaxH = maxHeuristicValues.back();
     }
-    /*If we did not complete one step, and we do not surpass the previous maxH
-	  we do not have heuristic*/
+    //If we did not complete one step, and we do not surpass the previous maxH we do not have heuristic
     if (closed.size() <= 1 && hNotClosed <= previousMaxH) {
         cout << "Heuristic not inserted: "
                 << hNotClosed << " " << closed.size() << endl;
@@ -440,7 +435,7 @@ void ClosedList::getHeuristic(vector<ADD> &heuristics,
     maxHeuristicValues.push_back(hNotClosed);
     heuristics.push_back(h);
 }
-
+*/
 
 ADD ClosedList::getHeuristic(int previousMaxH /*= -1*/) const {
     /* When zero cost operators have been expanded, all the states in non reached
@@ -456,7 +451,10 @@ ADD ClosedList::getHeuristic(int previousMaxH /*= -1*/) const {
 	    valueNonReached);
 	    }
 	    }*/
+
+    //TODO: Refactor to use vars->getADD(map<int, BDD>)
     BDD statesWithHNotClosed = !closedTotal;
+
     ADD h = mgr->mgr()->constant(-1);
     //cout << "New heuristic with h [";
     for (auto &it : closed) {
@@ -469,17 +467,29 @@ ADD ClosedList::getHeuristic(int previousMaxH /*= -1*/) const {
         if (h_val < previousMaxH && previousMaxH < hNotClosed) {
             h_val = previousMaxH;
         }
-        if (h_val != hNotClosed) {
+        assert (h_val <= hNotClosed);
+        if (h_val < hNotClosed) {
             h += it.second.Add() * mgr->mgr()->constant(h_val + 1);
-        } else {
+        }  else {
             statesWithHNotClosed += it.second;
         }
     }
-    //cout << hNotClosed << "]" << endl;
 
-    if (hNotClosed != numeric_limits<int>::max() && hNotClosed >= 0 && !statesWithHNotClosed.IsZero()) {
-        h += statesWithHNotClosed.Add() * mgr->mgr()->constant(hNotClosed + 1);
+    if (hNotClosed >= 0 && !statesWithHNotClosed.IsZero()) {
+        if (hNotClosed != numeric_limits<int>::max()) {
+            h = h.Maximum(statesWithHNotClosed.Add() * mgr->mgr()->constant(hNotClosed));
+        } else {
+            h = h.Maximum(statesWithHNotClosed.Add() * mgr->mgr()->plusInfinity());
+        }
     }
+
+  //  cout << "]" << endl;
+
+
+   //  cout << "Min: " << Cudd_V(h.FindMin().getRegularNode()) << endl;
+   //   cout << "Max: " << Cudd_V(h.FindMax().getRegularNode()) << endl;
+
+    assert(Cudd_V(h.FindMin().getRegularNode()) >= 0 );
 
     return h;
 }

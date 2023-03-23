@@ -31,6 +31,7 @@ namespace symbolic {
  */
 struct BDDError {};
 extern void exceptionError(std::string message);
+extern void exitOutOfMemory(size_t memory);
 
 class SymDecoupledManagerOptions;
 
@@ -42,6 +43,7 @@ class SymVariables {
     const long cudd_init_cache_size; //Initial cache size
     const long cudd_init_available_memory; //Maximum available memory (bytes)
     const bool gamer_ordering;
+    const bool respect_leaf_factoring_for_variable_ordering;
 
     std::unique_ptr<Cudd> _manager; //_manager associated with this symbolic search
 
@@ -54,6 +56,7 @@ class SymVariables {
     std::vector<std::vector <int>> var_orders; //Variable order per factor
 
     std::vector <std::vector <int>> bdd_index_pre, bdd_index_eff; //vars(BDD) for each var(FD)
+    std::vector<int> bdd_var_to_fd_var; // Has one entry per bdd_var specifying which variable it corresponds to
 
     std::vector <std::vector <BDD>> preconditionBDDs; // BDDs associated with the precondition of a predicate
     std::vector <std::vector <BDD>> effectBDDs;      // BDDs associated with the effect of a predicate
@@ -64,7 +67,7 @@ class SymVariables {
     std::vector<BDD> validBDDsFactor; // BDD that represents the valid values of all the variables
 
     enum class Assignment{ZERO, ONE, BOTH};
-    std::vector<std::vector<int> > fd_vars; //FD var for each bdd var and factor
+    std::vector<std::vector<int> > fd_vars_by_factor; //FD var for each bdd var and factor
 
     //Vector to store the binary description of an state
     //Avoid allocating memory during heuristic evaluation
@@ -73,7 +76,6 @@ class SymVariables {
     void init(const std::vector <int> &v_order);
 
     int init_factor_vars(LeafFactorID factor, const std::vector <int> &var_order) ;
-
 
 public:
     SymVariables(const Options &opts);
@@ -214,6 +216,7 @@ public:
             //preconditionBDDs[v] [state[v]].PrintMinterm();
 
             for (size_t j = 0; j < bdd_index_pre[v].size(); j++) {
+                assert (pos == bdd_index_pre[v][0] + ((int)j)*2);
                 binState[pos++] = ((state[v] >> j) % 2);
                 binState[pos++] = 0; //Skip interleaving variable
             }
@@ -228,17 +231,16 @@ public:
     }
 
 
-    inline ADD getADD(int value) {
-        return _manager->constant(value);
+    ADD getADD(int value) const;
+
+    ADD getADD(const std::map<int, BDD> & heur) const;
+
+    const std::vector<int> & get_variable_order() const {
+        return var_order;
     }
 
-    inline ADD getADD(std::map<int, BDD> heur) {
-        ADD h = getADD(-1);
-        for (const auto &entry : heur) {
-            int distance = 1 + entry.first;
-            h += entry.second.Add() * getADD(distance);
-        }
-        return h;
+    int getFDVar(int bdd_var) const {
+        return bdd_var_to_fd_var[bdd_var];
     }
 
     static void add_options_to_parser(OptionParser &parser);
@@ -262,10 +264,6 @@ private:
 
     inline BDD createEffectBDD(int variable, int value) const {
         return generateBDDVar(bdd_index_eff[variable], value);
-    }
-
-    inline int getNumBDDVars() const {
-        return numBDDVars;
     }
 
     inline int pos_fd_var (int fd_var) const {
@@ -320,6 +318,12 @@ public:
         return tmp_fact_prices;
     }
 
+    ADD plusInfinity() const;
+
+
+    inline int getNumBDDVars() const {
+        return numBDDVars;
+    }
 };
 
 #endif

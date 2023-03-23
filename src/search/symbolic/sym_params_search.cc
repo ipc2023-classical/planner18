@@ -71,7 +71,7 @@ void SymParamsSearch::print_options() const {
 
 void SymParamsSearch::add_options_to_parser(OptionParser &parser, int maxStepTime, int maxStepNodes) {
     parser.add_option<int> ("max_disj_nodes",
-                            "maximum size to enforce disjunction before image", to_string(numeric_limits<int>::max()));
+                            "maximum size to enforce disjunction before image", to_string(numeric_limits<int>::max()-1));
 
     parser.add_option<double> ("min_estimation_time",
                                "minimum time to perform linear interpolation for estimation", "1000");
@@ -108,14 +108,14 @@ void SymParamsSearch::add_options_to_parser(OptionParser &parser, int maxStepTim
 
     //The default value is a 50% percent more than maxStepTime,
     parser.add_option<int>    ("min_alloted_time",
-                               "minimum alloted time for an step", to_string(60e3));
+                               "minimum alloted time for an step", to_string(int(60e3)));
     parser.add_option<int>    ("min_alloted_nodes",
-                               "minimum alloted nodes for an step", to_string(10e6));
+                               "minimum alloted nodes for an step", to_string(int(10e6)));
 
     parser.add_option<int>    ("max_alloted_time",
-                               "maximum alloted time for an step", to_string(60e3));
+                               "maximum alloted time for an step", to_string(int(60e3)));
     parser.add_option<int>    ("max_alloted_nodes",
-                               "maximum alloted nodes for an step", to_string(15e6));
+                               "maximum alloted nodes for an step", to_string(int(15e6)));
 
     parser.add_option<double> ("ratio_alloted_time",
                                "multiplier to decide alloted time for a step", "2.0");

@@ -2,9 +2,11 @@
 #define SYMBOLIC_OPT_ORDER_H
 
 #include <vector>
+#include "../utils/rng.h"
 
 namespace symbolic {
 class InfluenceGraph {
+    mutable utils::RandomNumberGenerator rng;
     std::vector<std::vector<long>> influence_graph;
 
     long influence(int v1, int v2) const {
@@ -16,7 +18,7 @@ class InfluenceGraph {
                                           int iterations) const;
     long compute_function(const std::vector <int> &order) const;
     void optimize_ordering_gamer(std::vector <int> &ordering) const;
-    static void randomize(std::vector <int> &ordering, std::vector<int> &new_order);
+    void randomize(const std::vector <int> &ordering, std::vector<int> &new_order) const;
 
 
 public:
@@ -32,7 +34,8 @@ public:
         influence_graph[v2][v1] = val;
     }
 
-    static void compute_gamer_ordering(std::vector <int> &ordering);
+    static std::vector <int> compute_gamer_ordering();
+    static std::vector<int> compute_gamer_ordering_respecting_factors();
 
     static std::vector<std::vector <int>> compute_factored_gamer_ordering();
     

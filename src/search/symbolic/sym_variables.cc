@@ -5,6 +5,8 @@
 #include "opt_order.h"
 #include "sym_util.h"
 #include "sym_decoupled_manager.h"
+#include "../factoring.h"
+
 
 #ifdef USE_CUDD
 #include <cudd.h>
@@ -27,34 +29,36 @@ SymVariables::SymVariables(const SymDecoupledManagerOptions &opts) :
                     cudd_init_nodes(opts.cudd_init_nodes),
                     cudd_init_cache_size(opts.cudd_init_cache_size),
                     cudd_init_available_memory(opts.cudd_init_available_memory),
-                    gamer_ordering(opts.gamer_ordering) {
+                    gamer_ordering(opts.gamer_ordering),
+                    respect_leaf_factoring_for_variable_ordering(false){
 }
 
 SymVariables::SymVariables(const Options &opts) :
                     cudd_init_nodes(opts.get<int>("cudd_init_nodes")),
                     cudd_init_cache_size(opts.get<int>("cudd_init_cache_size")),
                     cudd_init_available_memory(opts.get<int>("cudd_init_available_memory")),
-                    gamer_ordering(opts.get<bool>("gamer_ordering")) {
+                    gamer_ordering(opts.get<bool>("gamer_ordering")),
+                    respect_leaf_factoring_for_variable_ordering (opts.get<bool>("respect_leaf_factoring")) {
 }
 
 void SymVariables::init() {
-    if(g_factoring) {
-        fd_vars.resize(g_leaves.size());
+    // TODO: The symbolic leaves and symbolic heuristics are not properly integrated.
+    if (g_factoring && g_factoring->get_leaf_representation_type() == LEAF_REPRESENTATION_TYPE::SYMBOLIC) {
+        fd_vars_by_factor.resize(g_leaves.size());
         if (gamer_ordering) {
             var_orders = InfluenceGraph::compute_factored_gamer_ordering();
         } else {
             var_orders = g_leaves;
         }
         cout << "Sym variable order by factor: ";
-        for (const auto & var_order : var_orders) {
+        for (const auto &var_order: var_orders) {
             cout << "(";
-            for (int v : var_order) {
+            for (int v: var_order) {
                 cout << " " << v;
             }
-            cout << ") " ;
+            cout << ") ";
         }
         cout << endl;
-
 
         bdd_index_pre = vector<vector<int>>(g_variable_domain.size());
         bdd_index_eff = vector<vector<int>>(g_variable_domain.size());
@@ -62,23 +66,23 @@ void SymVariables::init() {
 
         numBDDVars = 0;
         for (LeafFactorID factor(0); factor < g_leaves.size(); ++factor) {
-            numBDDVarsByFactor[factor] =init_factor_vars(factor, var_orders[factor]);
+            numBDDVarsByFactor[factor] = init_factor_vars(factor, var_orders[factor]);
             numBDDVars = max(numBDDVars, numBDDVarsByFactor[factor]);
         }
 
-        int numBDDVarsManager = numBDDVars*2;
+        int numBDDVarsManager = numBDDVars * 2;
 
         cout << "Num variables: " << g_variable_domain.size() << " => " << numBDDVars << endl;
 
         //Initialize manager
         cout << "Initialize Symbolic Manager(" << numBDDVarsManager << ", "
-                << cudd_init_nodes / numBDDVarsManager << ", "
-                << cudd_init_cache_size << ", "
-                << cudd_init_available_memory << ")" << endl;
-        _manager = unique_ptr<Cudd> (new Cudd(numBDDVarsManager, 0,
-                cudd_init_nodes / numBDDVarsManager,
-                cudd_init_cache_size,
-                cudd_init_available_memory));
+             << cudd_init_nodes / numBDDVarsManager << ", "
+             << cudd_init_cache_size << ", "
+             << cudd_init_available_memory << ")" << endl;
+        _manager = unique_ptr<Cudd>(new Cudd(numBDDVarsManager, 0,
+                                             cudd_init_nodes / numBDDVarsManager,
+                                             cudd_init_cache_size,
+                                             cudd_init_available_memory));
 
         _manager->setHandler(exceptionError);
         _manager->setTimeoutHandler(exceptionError);
@@ -101,7 +105,7 @@ void SymVariables::init() {
         validBDDsFactor.resize(g_leaves.size(), oneBDD());
         //Generate predicate (precondition (s) and effect (s')) BDDs
         for (LeafFactorID factor(0); factor < g_leaves.size(); ++factor) {
-            for (int var : var_orders[factor]) {
+            for (int var: var_orders[factor]) {
 
                 for (int j = 0; j < g_variable_domain[var]; j++) {
                     preconditionBDDs[var].push_back(createPreconditionBDD(var, j));
@@ -115,28 +119,26 @@ void SymVariables::init() {
                 biimpBDDs[var] = createBiimplicationBDD(bdd_index_pre[var], bdd_index_eff[var]);
             }
         }
+    } else if (respect_leaf_factoring_for_variable_ordering) {
 
-        cout << "Symbolic Variables... Done." << endl;
+        assert (gamer_ordering);
+        vector <int> v_order = InfluenceGraph::compute_gamer_ordering_respecting_factors();
 
-    } else{
-
-        vector <int> var_order;
+        init(v_order);
+    } else {
+        vector <int> v_order;
         if (gamer_ordering) {
-            InfluenceGraph::compute_gamer_ordering(var_order);
+            v_order = InfluenceGraph::compute_gamer_ordering();
         } else {
             for (size_t i = 0; i < g_variable_domain.size(); ++i) {
-                var_order.push_back(i);
+                v_order.push_back(i);
             }
         }
-        cout << "Sym variable order: ";
-        for (int v : var_order)
-            cout << v << " ";
-        cout << endl;
 
-        init(var_order);
-
-
+        init(v_order);
     }
+
+    cout << "Symbolic Variables... Done." << endl;
 }
 
 //Constructor that makes use of global variables to initialize the symbolic_search structures
@@ -153,8 +155,8 @@ int SymVariables::init_factor_vars(LeafFactorID factor, const vector <int> &var_
         for (int j = 0; j < var_len; j++) {
             bdd_index_pre[var].push_back(_numBDDVars);
             bdd_index_eff[var].push_back(_numBDDVars + 1);
-            fd_vars[factor].push_back(var);
-            fd_vars[factor].push_back(var);
+            fd_vars_by_factor[factor].push_back(var);
+            fd_vars_by_factor[factor].push_back(var);
             _numBDDVars += 2;
         }
     }
@@ -166,12 +168,19 @@ int SymVariables::init_factor_vars(LeafFactorID factor, const vector <int> &var_
 void SymVariables::init(const vector <int> &v_order) {
     cout << "Initializing Symbolic Variables" << endl;
     var_order = vector<int>(v_order);
+
+    cout << "Sym variable order: ";
+    for (int v : var_order)
+        cout << v << " ";
+    cout << endl;
+
     int num_fd_vars = var_order.size();
 
     //Initialize binary representation of variables.
     numBDDVars = 0;
     bdd_index_pre = vector<vector<int>>(v_order.size());
     bdd_index_eff = vector<vector<int>>(v_order.size());
+    bdd_var_to_fd_var.clear();
 
     //for each variable in the ordering, set the associated binary variables
     int _numBDDVars = 0;// numBDDVars;
@@ -181,6 +190,8 @@ void SymVariables::init(const vector <int> &v_order) {
         for (int j = 0; j < var_len; j++) {
             bdd_index_pre[var].push_back(_numBDDVars);
             bdd_index_eff[var].push_back(_numBDDVars + 1);
+            bdd_var_to_fd_var.push_back(var);
+            bdd_var_to_fd_var.push_back(var);
             _numBDDVars += 2;
         }
     }
@@ -205,6 +216,8 @@ void SymVariables::init(const vector <int> &v_order) {
 
     _manager->setHandler(exceptionError);
     _manager->setTimeoutHandler(exceptionError);
+    _manager->setNodesExceededHandler(exceptionError);
+    _manager->RegisterOutOfMemoryCallback(exitOutOfMemory);
     // TODO: _manager->setNodesExceededHandler(exceptionError);
 
     cout << "Generating binary variables" << endl;
@@ -281,7 +294,7 @@ BDD SymVariables::getStateBDD(const vector<int> &state) const {
 
 
 BDD SymVariables::getPartialStateBDD(const vector<pair<int, int>> &state) const {
-    assert(!g_factoring);
+    assert(!(g_factoring && g_factoring->get_leaf_representation_type() == LEAF_REPRESENTATION_TYPE::SYMBOLIC));
     BDD res = validBDD;
     for (int i = state.size() - 1; i >= 0; i--) {
         // if(find(var_order.begin(), var_order.end(),
@@ -293,8 +306,7 @@ BDD SymVariables::getPartialStateBDD(const vector<pair<int, int>> &state) const 
 }
 
 BDD SymVariables::getPartialStateBDD(LeafFactorID factor, const vector<pair<int, int>> &state) const {
-    assert(g_factoring);
-    BDD res = validBDDsFactor[factor];
+    assert(!(g_factoring && g_factoring->get_leaf_representation_type() == LEAF_REPRESENTATION_TYPE::SYMBOLIC));    BDD res = validBDDsFactor[factor];
     for (int i = state.size() - 1; i >= 0; i--) {
         assert(g_belongs_to_factor[state[i].first] == factor);
         // if(find(var_order.begin(), var_order.end(),
@@ -370,7 +382,29 @@ vector <BDD> SymVariables::getBDDVars(const vector <int> &vars, const vector<vec
     return res;
 }
 
+ADD SymVariables::getADD(int value) const {
+    return _manager->constant(value);
+}
 
+/*
+ADD SymVariables::getADD(const std::map<int, BDD> & heur)  const {
+    ADD h = getADD(-1);
+    for (const auto &entry : heur) {
+        int distance = 1 + entry.first;
+        h += entry.second.Add() * getADD(distance);
+    }
+    return h;
+}
+*/
+ADD SymVariables::getADD(const std::map<int, BDD> & heur) const {
+      ADD h = plusInfinity();
+      for (const auto &entry : heur) {
+          int distance = entry.first;
+          ADD aux = (!entry.second).Add() * plusInfinity() + getADD(distance);
+          h = h.Minimum(aux);
+      }
+      return h;
+  }
 
 BDD SymVariables::getCube(int var, const vector<vector<int>> &v_index) const {
     BDD res = oneBDD();
@@ -397,6 +431,10 @@ exceptionError(string /*message*/) {
     throw BDDError();
 }
 
+void
+exitOutOfMemory(size_t) {
+    utils::exit_with(utils::ExitCode::SEARCH_OUT_OF_MEMORY);
+}
 
 void SymVariables::print() {
     ofstream file("variables.txt");
@@ -415,7 +453,8 @@ void SymVariables::print_options() const {
     cout << "CUDD Init: nodes=" << cudd_init_nodes <<
             " cache=" << cudd_init_cache_size <<
             " max_memory=" << cudd_init_available_memory <<
-            " ordering: " << (gamer_ordering ? "gamer" : "fd") << endl;
+            " ordering: " << (gamer_ordering ? "gamer" : "fd") <<
+            " respect factor ordering: " << (respect_leaf_factoring_for_variable_ordering ? "yes" : "no") << endl;
 }
 
 void SymVariables::add_options_to_parser(OptionParser &parser) {
@@ -437,10 +476,9 @@ void SymVariables::add_options_to_parser(OptionParser &parser) {
     parser.add_option<int> ("cudd_init_available_memory",
             "Total available memory for the cudd manager.", "0");
     parser.add_option<bool> ("gamer_ordering", "Use Gamer ordering optimization", "true");
+    parser.add_option<bool> ("respect_leaf_factoring", "Use Gamer ordering optimization but ensuring that leaf factoring is respected", "false");
+
 }
-
-
-
 
 void SymVariables::put_facts (int fd_var,
         const vector<Assignment> & current_assignment,
@@ -495,7 +533,7 @@ void SymVariables::get_BDD_facts(LeafFactorID factor, DdNode * bdd, int current_
      */
     DdNode * F = Cudd_Regular(bdd);
     int bdd_var = _manager->ReadPerm(F->index);
-    int fd_var = fd_vars[factor][bdd_var];
+    int fd_var = fd_vars_by_factor[factor][bdd_var];
     //cout << bdd_var << " -> " << fd_var << endl;
 
     if(fd_var != current_fd_var) {
@@ -587,7 +625,11 @@ void SymVariables::put_facts(int fd_var,
     put_facts(fd_var, current_assignment, facts, pos_fd_var(fd_var), 0, 1, price_value);
 }
 
-void SymVariables::put_facts(int fd_var,
+    ADD SymVariables::plusInfinity() const {
+        return _manager->plusInfinity();
+    }
+
+    void SymVariables::put_facts(int fd_var,
         const vector<Assignment> & current_assignment,
         vector<vector<int> > & facts, int pos,
         int fact_value, int value_pos, int price_value) const {
@@ -648,7 +690,7 @@ int SymVariables::get_ADD_fact_prices(LeafFactorID factor, DdNode *bdd, int curr
      */
     DdNode * F = Cudd_Regular(bdd);
     int bdd_var = _manager->ReadPerm(F->index);
-    int fd_var = fd_vars[factor][bdd_var];
+    int fd_var = fd_vars_by_factor[factor][bdd_var];
 
 
     int price_value;

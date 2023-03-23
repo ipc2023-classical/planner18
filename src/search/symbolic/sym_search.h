@@ -65,7 +65,7 @@ public:
     }
 
     virtual bool stepImage(int maxTime, int maxNodes) = 0;
-  
+
     virtual int getF() const = 0;
     virtual bool finished() const = 0;
 

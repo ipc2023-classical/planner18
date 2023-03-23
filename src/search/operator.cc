@@ -18,6 +18,11 @@ bool Condition::is_applicable(const GlobalState &state) const {
     return state[var] == val;
 }
 
+bool Condition::is_applicable(const vector<int> &state) const {
+    assert(!g_factoring || g_belongs_to_factor[var] == LeafFactorID::CENTER);
+    return state[var] == val;
+}
+
 bool Condition::is_applicable(const LeafState &state) const {
     assert(g_belongs_to_factor[var] == state.get_id().get_factor());
     return state[var] == val;
@@ -37,7 +42,6 @@ void Effect::dump() const {
         }
     }
 }
-
 
 void Operator::read_pre_post(istream &in) {
     int cond_count, var, pre, post;

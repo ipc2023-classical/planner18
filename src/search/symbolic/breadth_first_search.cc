@@ -37,11 +37,11 @@ bool BreadthFirstSearch::init(std::shared_ptr<SymStateSpaceManager> manager, boo
         perfectHeuristic = closed_opposite;
         if (solution_bound) {
             if(!empty_intersection(open[0], !(perfectHeuristic->notClosed()))) {
-                solution_bound->new_solution(SymSolution(1, open[0]));
+                solution_bound->new_solution(SymSolution(this, 1, open[0]));
                 solution_bound->setLowerBound(1);
             }
         }
-    } 
+    }
 
     mgr->filterMutex(open, fw, true);
 
@@ -50,7 +50,7 @@ bool BreadthFirstSearch::init(std::shared_ptr<SymStateSpaceManager> manager, boo
     return true;
 }
 
-bool BreadthFirstSearch::init(const std::shared_ptr<BreadthFirstSearch> & other, 
+bool BreadthFirstSearch::init(const std::shared_ptr<BreadthFirstSearch> & other,
         shared_ptr<SymStateSpaceManager> manager,
         int maxRelaxTime, int maxRelaxNodes){
     utils::Timer t;
@@ -90,7 +90,7 @@ bool BreadthFirstSearch::init(const std::shared_ptr<BreadthFirstSearch> & other,
 
     mgr->mergeBucket(open);
 
-    estimation.recalculate(other->estimation,nodeCount(open)); 
+    estimation.recalculate(other->estimation,nodeCount(open));
 
     return success;
 }
@@ -109,7 +109,7 @@ long BreadthFirstSearch::nextStepTime() const{
     return estimation.time();
 }
 
-long BreadthFirstSearch::nextStepNodes() const {    
+long BreadthFirstSearch::nextStepNodes() const {
     return estimation.nextNodes();
 }
 
@@ -119,7 +119,7 @@ long BreadthFirstSearch::nextStepNodesResult() const {
 
 BDD BreadthFirstSearch::pop (){
     mgr->mergeBucket(open);
-    assert(!open.empty()); 
+    assert(!open.empty());
     BDD res = open.front();
     open.erase(open.begin());
     filterDuplicates(res);
@@ -169,14 +169,14 @@ bool BreadthFirstSearch::stepImage(int maxTime, int maxNodes){
         return false;
     }
 
-    //Include new states in the open list 
+    //Include new states in the open list
     int stepNodes = nodesStep;
 
     mgr->mergeBucket(resImage);
 
     //Check the cut (removing states classified, since they do not need to be included in open)
     // if (!isAbstracted()){
-    //     checkCutOriginal(pairCostBDDs.second, cost); 
+    //     checkCutOriginal(pairCostBDDs.second, cost);
     //     exit_with(EXIT_PLAN_FOUND);
     // }
 
@@ -184,12 +184,12 @@ bool BreadthFirstSearch::stepImage(int maxTime, int maxNodes){
 
     filterDuplicates(resImage);
 
-    for(auto & bdd : resImage){  
+    for(auto & bdd : resImage){
         if(!bdd.IsZero()){
             stepNodes = max(stepNodes, bdd.nodeCount());
             if (solution_bound && perfectHeuristic) {
                 if(!empty_intersection(bdd, !(perfectHeuristic->notClosed()))) {
-                    solution_bound->new_solution(SymSolution(1, bdd));
+                    solution_bound->new_solution(SymSolution(this, 1, bdd));
                     solution_bound->setLowerBound(1);
                     assert(solution_bound->solved());
                     open.clear();
@@ -198,7 +198,7 @@ bool BreadthFirstSearch::stepImage(int maxTime, int maxNodes){
             }
             open.push_back(bdd);
         }
-    }   
+    }
 
     estimation.stepTaken(1000*step_time(), stepNodes);
     estimation.nextStep(nodeCount(open));
@@ -212,7 +212,7 @@ bool BreadthFirstSearch::stepImage(int maxTime, int maxNodes){
 
 void BreadthFirstSearch::violated(TruncatedReason reason, double ellapsed_seconds, int maxTime, int maxNodes){
     //DEBUG_MSG(
-    cout << "Truncated in " << reason << ", took " << ellapsed_seconds << " s," << 
+    cout << "Truncated in " << reason << ", took " << ellapsed_seconds << " s," <<
             " maxtime: " << maxTime << " maxNodes: " << maxNodes<< endl;
     //);
     int time = 1 + ellapsed_seconds*1000;
@@ -221,7 +221,7 @@ void BreadthFirstSearch::violated(TruncatedReason reason, double ellapsed_second
 
 bool BreadthFirstSearch::isSearchableWithNodes(int maxNodes) const{
     //cout << "Is searchable? "<< estimation.nodes() << " " << maxNodes << endl;
-    return /* ((fw && bdExp->getDir() != Dir::BW) || 
+    return /* ((fw && bdExp->getDir() != Dir::BW) ||
 	      (!fw && bdExp->getDir() != Dir::FW)) &&*/
             estimation.nodes() <= maxNodes;
 }
@@ -239,7 +239,7 @@ void BreadthFirstSearch::notifyMutexes (const BDD & mutex_bdd) {
         bdd *= !mutex_bdd;
     }
 
-    estimation.recalculate(estimation, nodeCount(open)); 
+    estimation.recalculate(estimation, nodeCount(open));
 
     if(mgr->isOriginal() && nodeCount(open) != nodesBefore) {
         cout << "Applying mutexes to orig search " << (fw? "fw: "  : "bw: ")
