@@ -11,10 +11,23 @@ Stage: build
 %post
     ## Install all dependencies.
     apt-get update
-    apt-get -y install --no-install-recommends cmake make g++ pypy3 default-jre-headless zlib1g-dev
+    apt-get -y install --no-install-recommends cmake make g++ pypy3 automake default-jre-headless zlib1g-dev
 
     ## Clear local build directories.
     rm -rf /builds
+
+    ## Build CUDD
+    cd third-party/cudd
+
+    aclocal
+    automake
+    ./configure --enable-shared --enable-obj
+    make
+    make install
+
+    export PATH="/third-party/cudd:$PATH"
+
+    cd ../..
 
     ## Build CPLEX
     ./ILOG_COS_20.10_LINUX_X86_64.bin -DLICENSE_ACCEPTED=TRUE -i silent
@@ -58,6 +71,8 @@ Stage: run
     fast-downward.py
     driver
     builds/release64/bin/
+    third-party/cudd/
+    /usr/local/lib/libcudd-3.0.0.so.0
     /opt/ibm/ILOG/CPLEX_Studio201/cplex/
     /opt/ibm/ILOG/CPLEX_Studio201/concert/
     /opt/coin/
