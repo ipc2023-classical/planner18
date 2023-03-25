@@ -9,7 +9,7 @@ ALIASES = {}
 
 ALIASES["seq-opt-decabstar"] = [
     '--decoupling',
-    'lp_general(factoring_time_limit=30, memory_limit=7500, add_cg_sccs=true, strategy=mm_approx, min_flexibility=0.8)',
+    'lp_general(abstain_type=standard_on_failure, factoring_time_limit=30, memory_limit=7500, add_cg_sccs=true, strategy=mm_approx, min_flexibility=0.8)',
     '--heuristic',
     'epdbs=max_scp_single_leaf(abstractions=[projections(patterns=multiple_cegar(total_max_time=70,pattern_filter=n_leaves_patterns(1))),projections(patterns=systematic(pattern_max_size=2,max_time=70,pattern_filter=n_leaves_patterns(1))),projections(patterns=hillclimbing(max_time=110,pattern_filter=n_leaves_patterns(1)))],max_time=110,saturator=all)',
     '--heuristic',
