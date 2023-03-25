@@ -43,7 +43,7 @@ class MergeAndShrinkAlgorithm {
     const bool prune_irrelevant_states;
 
     mutable utils::LogProxy log;
-    const double main_loop_max_time;
+    double main_loop_max_time;
 
     long starting_peak_memory;
 

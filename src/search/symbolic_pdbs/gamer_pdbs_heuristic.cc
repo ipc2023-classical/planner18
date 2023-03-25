@@ -128,13 +128,22 @@ GamerPDBsHeuristic::GamerPDBsHeuristic(const Options &opts)
     perimeter (opts.get<bool> ("perimeter")),
     gamer (opts.get<bool> ("gamer")) {
 
+    // HACK: hard-coding time/memory increments for the IPC
+    if (!g_factoring){
+        generationTime += 150;
+    }
+    if (has_conditional_effects()){
+        generationTime += 200;
+        generationMemory += 1000000000;
+    }
+
     utils::Timer timer_heuristic_generation;
     SymController::initialize();
     utils::Timer timer;
     cout << "Initializing gamer pdb heuristic..." << endl;
 
 
-    if (opts.contains("lookup")){
+    if (opts.contains("lookup") && g_factoring){
         lookup_decoupled_strategy = opts.get<shared_ptr<LookupAddDecoupledHeuristic>>("lookup");
         lookup_decoupled_strategy->initialize(vars.get());
     }   else if (g_factoring) {

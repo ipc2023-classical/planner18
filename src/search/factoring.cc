@@ -804,6 +804,10 @@ inline void check_factoring(const vector<set<int>> &factoring) {
 }
 
 void Factoring::do_factoring_or_abstain() {
+    if (abstain_type == ABSTAIN_TYPE::STANDARD_ON_FAILURE &&
+            (has_axioms() || has_conditional_effects())){
+        return;
+    }
     verify_no_axioms_no_conditional_effects();
 
     // for calculating the factoring time

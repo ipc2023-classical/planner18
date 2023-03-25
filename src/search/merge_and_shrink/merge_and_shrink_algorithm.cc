@@ -13,6 +13,8 @@
 #include "types.h"
 #include "utils.h"
 
+#include "../globals.h"
+
 #include "../options/option_parser.h"
 #include "../options/options.h"
 
@@ -53,6 +55,13 @@ MergeAndShrinkAlgorithm::MergeAndShrinkAlgorithm(const Options &opts) :
     log(utils::get_log_from_options(opts)),
     main_loop_max_time(opts.get<double>("main_loop_max_time")),
     starting_peak_memory(0) {
+    // HACK: hard-coding time increments for the IPC
+    if (!g_factoring){
+        main_loop_max_time += 150;
+    }
+    if (has_conditional_effects()){
+        main_loop_max_time += 200;
+    }
     assert(max_states_before_merge > 0);
     assert(max_states >= max_states_before_merge);
     assert(shrink_threshold_before_merge <= max_states_before_merge);

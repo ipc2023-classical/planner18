@@ -89,7 +89,7 @@ Stage: run
     pypy3 /fast-downward.py \
         --plan-file "$PLANFILE" \
         --build release64 \
-        --alias "seq-opt-decabstar" \
+        --alias seq-opt-decabstar \
         --overall-memory-limit 8000M \
         --overall-time-limit 30m \
         --transform-task /builds/release64/bin/preprocess-h2 \

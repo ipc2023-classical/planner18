@@ -7,6 +7,18 @@ PORTFOLIO_DIR = os.path.join(DRIVER_DIR, "portfolios")
 
 ALIASES = {}
 
+ALIASES["seq-opt-decabstar"] = [
+    '--decoupling',
+    'lp_general(factoring_time_limit=30, memory_limit=7500, add_cg_sccs=true, strategy=mm_approx, min_flexibility=0.8)',
+    '--heuristic',
+    'epdbs=max_scp_single_leaf(abstractions=[projections(patterns=multiple_cegar(total_max_time=70,pattern_filter=n_leaves_patterns(1))),projections(patterns=systematic(pattern_max_size=2,max_time=70,pattern_filter=n_leaves_patterns(1))),projections(patterns=hillclimbing(max_time=110,pattern_filter=n_leaves_patterns(1)))],max_time=110,saturator=all)',
+    '--heuristic',
+    'spdbs=gamer_pdbs(generation_time=350, generation_memory=4000000000, respect_leaf_factoring=true, lookup=recursive)',
+    '--heuristic',
+    'ms=merge_and_shrink(shrink_strategy=shrink_bisimulation(greedy=false),merge_strategy=merge_clustering(clustering_factory=clustering_compliant_factoring(),order_of_clusters=given,merge_selector=score_based_filtering(scoring_functions=[sf_miasm(shrink_strategy=shrink_bisimulation(greedy=false),max_states=50000,threshold_before_merge=1),total_order(atomic_ts_order=reverse_level,product_ts_order=new_to_old,atomic_before_product=false,random_seed=2016)])),label_reduction=exact(before_shrinking=true,before_merging=false),max_states=50000,threshold_before_merge=1,main_loop_max_time=450,decoupled_lookup=exact)',
+    '--search',
+    'astar(max([epdbs, spdbs, ms]))'
+]
 
 ALIASES["seq-sat-fd-autotune-1"] = [
     "--heuristic", "hff=ff(transform=adapt_costs(one))",

@@ -30,6 +30,9 @@ MaxSCPHeuristicSingleLeaf::MaxSCPHeuristicSingleLeaf(
     Abstractions &&abstractions,
     CPHeuristics &&cp_heuristics)
     : MaxSCPHeuristic(opts, move(abstractions), move(cp_heuristics)) {
+    if (!g_factoring){
+        return;
+    }
     // Verify that every pattern affects at most one leaf factor.
     for (unique_ptr<Abstraction> &abstraction : abstractions) {
         Projection *projection = dynamic_cast<Projection *>(abstraction.get());
@@ -107,6 +110,9 @@ int MaxSCPHeuristicSingleLeaf::compute_min_distance(
 }
 
 int MaxSCPHeuristicSingleLeaf::compute_heuristic(const GlobalState &state) {
+    if (has_conditional_effects()){
+        return 0;
+    }
     int max_h = 0;
     vector<int> member_state;
     const ExplicitStateCPG *prices = nullptr;
@@ -125,7 +131,7 @@ int MaxSCPHeuristicSingleLeaf::compute_heuristic(const GlobalState &state) {
             sum_h = cp_heuristic.compute_heuristic(abstract_state_ids);
             if (sum_h == numeric_limits<int>::max()){
                 // all reached leaf states are dead-ends
-                return numeric_limits<int>::max();
+                return DEAD_END;
             }
         } else {
             for (const auto &lookup_table : cp_heuristic.lookup_tables) {
@@ -179,12 +185,18 @@ static shared_ptr<Evaluator> _parse(OptionParser &parser) {
     shared_ptr<AbstractTask> task = tasks::g_root_task;
     TaskProxy task_proxy(*task);
     vector<int> costs = task_properties::get_operator_costs(task_proxy);
-    Abstractions abstractions = generate_abstractions(
-        task, opts.get_list<shared_ptr<AbstractionGenerator>>("abstractions"));
-    CPFunction cp_function = get_cp_function_from_options(opts);
-    CPHeuristics cp_heuristics =
-        get_cp_heuristic_collection_generator_from_options(opts).generate_cost_partitionings(
-            task_proxy, abstractions, costs, cp_function);
+    Abstractions abstractions;
+    CPHeuristics cp_heuristics;
+    if (!has_conditional_effects()) {
+        abstractions = generate_abstractions(
+                task, opts.get_list < shared_ptr < AbstractionGenerator >> ("abstractions"));
+        CPFunction cp_function = get_cp_function_from_options(opts);
+        cp_heuristics =
+                get_cp_heuristic_collection_generator_from_options(opts).generate_cost_partitionings(
+                        task_proxy, abstractions, costs, cp_function);
+    } else {
+        cout << "WARNING: task has conditional effects, skipping explicit PDB heuristic." << endl;
+    }
     return make_shared<MaxSCPHeuristicSingleLeaf>(
         opts,
         move(abstractions),

@@ -50,8 +50,8 @@ public:
 std::ostream & operator<<(std::ostream &os, const PDBSearch & pdb);
 
 class GamerPDBsHeuristic : public Heuristic, public SymController {
-    const int generationTime;
-    const double generationMemory;
+    int generationTime;
+    double generationMemory;
     const bool perimeter;
     const bool gamer;
 
